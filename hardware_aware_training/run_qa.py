@@ -491,7 +491,6 @@ def main():
 
 
 
-    digital_model=model
     print("Original digital model:")
     print(model)
 
@@ -787,17 +786,7 @@ def main():
             compute_metrics=compute_metrics,
         )
     else:
-        trainer = QuestionAnsweringTrainer(
-            model=model,
-            args=training_args,
-            train_dataset=train_dataset if training_args.do_train else None,
-            eval_dataset=eval_dataset if training_args.do_eval else None,
-            eval_examples=eval_examples if training_args.do_eval else None,
-            tokenizer=tokenizer,
-            data_collator=data_collator,
-            post_process_function=post_processing_function,
-            compute_metrics=compute_metrics,
-        )
+        raise ValueError("For training an analog model using AIHWKIT, the optimizer must be AnalogSGD or AnalogAdam.")
 
 
 
@@ -822,23 +811,6 @@ def main():
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
-
-    # # Evaluation
-    # if training_args.do_eval:
-    #     drift_values = [0, 3600, 86400, 604800, 2592000]
-    #     for i in range(1):
-    #         # model.load_state_dict(torch_load("saved_chkpt.pt"))
-    #         model.load_state_dict(torch.load('saved_chkpt.pt'), load_rpu_config=False)
-    #         model.eval()
-    #         print(f"Testing with drift_analog_weights = {drift_values[i]}")
-    #         model.drift_analog_weights(drift_values[i])
-    #         logger.info("*** Evaluate ***")
-    #         metrics = trainer.evaluate()
-    #
-    #         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
-    #         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
-    #         trainer.log_metrics("eval", metrics)
-    #         trainer.save_metrics("eval", metrics)
 
     if training_args.do_eval:
         # Define all possible drift values (0 second, 1 hour, 1 day, 1 week, 1 month, 1 year, 10 years)

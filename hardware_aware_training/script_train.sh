@@ -19,7 +19,7 @@ python run_qa.py \
 --doc_stride 128 \
 --warmup_steps 0 \
 --output_dir ./squad_models_train/ \
---pcm_model NeuroSoCStandard_Gmax55 \
+--pcm_model NeuroSoCLamina_Gmax55 \
 --output_noise_level 0.04 \
 --analog_optimizer AnalogAdam \
 --analog_lr 0.00005 \

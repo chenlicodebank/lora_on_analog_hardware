@@ -6,8 +6,7 @@ module load cuda/11.8.0-gcc-13.2.0
 conda activate  /scratch/users/k2258665/aihwkit_neurosoc_drift_fix/conda_env/neurosoc_aihwkit_drift_fix
 export SQUAD_DIR=pwd/data
 python run_qa.py \
---model_name_or_path csarron/mobilebert-uncased-squad-v1 --dataset_name squad \
---do_train \
+--model_name_or_path google/mobilebert-uncased --dataset_name squad \
 --do_eval \
 --save_strategy no \
 --per_device_train_batch_size 32 \
@@ -19,10 +18,9 @@ python run_qa.py \
 --doc_stride 128 \
 --warmup_steps 0 \
 --output_dir ./squad_models_train/ \
---pcm_model NeuroSoCLamina_Gmax55 \
+--pcm_model NeuroSoCStandard_Gmax20 \
 --output_noise_level 0.04 \
 --analog_optimizer AnalogAdam \
 --analog_lr 0.00005 \
 --num_evaluation_drift_values 7 \
 --num_evaluation_repetition 1
-

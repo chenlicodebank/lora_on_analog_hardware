@@ -491,7 +491,6 @@ def main():
 
 
 
-    digital_model=model
     print("Original digital model:")
     print(model)
 

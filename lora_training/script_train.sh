@@ -13,7 +13,7 @@ python run_qa.py \
 --per_device_train_batch_size 32 \
 --per_device_eval_batch_size 128 \
 --weight_decay 0.0001 \
---num_train_epochs 1 \
+--num_train_epochs 15 \
 --max_seq_length 320 \
 --evaluation_strategy epoch \
 --doc_stride 128 \

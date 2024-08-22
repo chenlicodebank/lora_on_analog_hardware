@@ -22,6 +22,6 @@ python run_qa.py \
 --pcm_model NeuroSoCLamina_Gmax55 \
 --output_noise_level 0.04 \
 --analog_optimizer AnalogAdam \
---analog_lr 0.00005 \
+--analog_lr 0.0002 \
 --num_evaluation_drift_values 7 \
 --num_evaluation_repetition 1

@@ -100,6 +100,20 @@ from aihwkit.simulator.configs import (
 # non huggingface parser import
 import argparse
 
+import wandb
+wandb.login()
+# Get the current folder name
+current_folder_name = os.path.basename(os.getcwd())
+# start a new wandb run to track this script
+wandb.init(
+    # set the wandb project where this run will be logged
+    project="lora_on_analog_hardware",
+
+    # We pass a run name (otherwise it’ll be randomly assigned, like sunshine-lollypop-10)
+    name=f"{current_folder_name}",
+    # track hyperparameters and run metadata
+)
+
 def gen_rpu_config(output_noise_level=0.04, pcm_model="NeuroSoCStandard_Gmax20"):
     rpu_config = TorchInferenceRPUConfig()
     rpu_config.mapping.digital_bias = True
@@ -139,6 +153,8 @@ def gen_rpu_config(output_noise_level=0.04, pcm_model="NeuroSoCStandard_Gmax20")
         rpu_config.noise_model = NeuroSoCLaminaModel(g_max=20)
     elif pcm_model == "NeuroSoCLamina_Gmax55":
         rpu_config.noise_model = NeuroSoCLaminaModel(g_max=55)
+    elif pcm_model == "PCM_Gmax25":
+        rpu_config.noise_model = PCMLikeNoiseModel(g_max=25.0)
     else:
         raise ValueError(f"Unknown PCM model: {pcm_model}")
 
@@ -877,7 +893,6 @@ def main():
         trainer.save_metrics("train", metrics)
         trainer.save_state()
 
-
     if training_args.do_eval:
         # Define all possible drift values (0 second, 1 hour, 1 day, 1 week, 1 month, 1 year, 10 years)
         all_drift_values = [0, 3600, 86400, 604800, 2592000, 31536000, 315360000]
@@ -924,6 +939,12 @@ def main():
             trainer.save_metrics(f"eval_std_driftsecond={drift}s", std_metrics)
             print(
                 f"Drift_analog_weights = {drift} second")
+
+            # Prepare the key with the formatted drift value
+            key_name = f"eval_mean_vs_drift_seconds"
+
+            # Log the metric to wandb
+            wandb.log({key_name: mean_metrics})
 
     # Prediction
     if training_args.do_predict:

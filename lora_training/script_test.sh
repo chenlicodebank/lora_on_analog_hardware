@@ -7,6 +7,8 @@ conda activate  /scratch/users/k2258665/aihwkit_neurosoc_drift_fix/conda_env/neu
 export SQUAD_DIR=pwd/data
 python run_qa.py \
 --model_name_or_path google/mobilebert-uncased --dataset_name squad \
+--report_to wandb \
+--logging_steps 100 \
 --do_eval \
 --save_strategy no \
 --per_device_train_batch_size 32 \
@@ -18,7 +20,7 @@ python run_qa.py \
 --doc_stride 128 \
 --warmup_steps 0 \
 --output_dir ./squad_models_train/ \
---pcm_model NeuroSoCLamina_Gmax55 \
+--pcm_model PCM_Gmax25 \
 --output_noise_level 0.04 \
 --analog_optimizer AnalogAdam \
 --analog_lr 0.0002 \

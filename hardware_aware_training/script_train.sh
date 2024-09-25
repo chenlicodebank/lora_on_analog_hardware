@@ -8,6 +8,8 @@ export SQUAD_DIR=pwd/data
 python run_qa.py \
 --model_name_or_path csarron/mobilebert-uncased-squad-v1 --dataset_name squad \
 --do_train \
+--report_to wandb \
+--logging_steps 100 \
 --do_eval \
 --save_strategy no \
 --per_device_train_batch_size 32 \
@@ -19,7 +21,7 @@ python run_qa.py \
 --doc_stride 128 \
 --warmup_steps 0 \
 --output_dir ./squad_models_train/ \
---pcm_model NeuroSoCLamina_Gmax55 \
+--pcm_model PCM_Gmax25 \
 --output_noise_level 0.04 \
 --analog_optimizer AnalogAdam \
 --analog_lr 0.00005 \

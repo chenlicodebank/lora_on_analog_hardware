@@ -1,9 +1,3 @@
-#!/bin/bash -l
-#SBATCH --output=./%j.out
-#SBATCH --gres=gpu
-source /software/spackages_prod/apps/linux-ubuntu20.04-zen2/gcc-9.4.0/anaconda3-2021.05-5d7m6vbj62rh6onwyyz6mdqatpag2b3b/etc/profile.d/conda.sh
-module load cuda/11.8.0-gcc-13.2.0
-conda activate  /scratch/users/k2258665/conda_env/neurosoc_aihwkit
 export TASK_NAME=mrpc
 export EXP_INDEX=3
 python run_glue.py \

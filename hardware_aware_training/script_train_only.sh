@@ -26,5 +26,5 @@ python run_qa.py \
 --analog_optimizer AnalogAdam \
 --analog_lr 0.00005 \
 --num_evaluation_drift_values 7 \
---num_evaluation_repetition 1
+--num_evaluation_repetition 10
 

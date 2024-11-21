@@ -7,9 +7,10 @@ conda activate  /scratch/users/k2258665/aihwkit_neurosoc_drift_fix/conda_env/neu
 export SQUAD_DIR=pwd/data
 python run_qa.py \
 --model_name_or_path csarron/mobilebert-uncased-squad-v1 --dataset_name squad \
---do_eval \
+--do_train \
 --report_to wandb \
 --logging_steps 100 \
+--do_eval \
 --save_strategy no \
 --per_device_train_batch_size 32 \
 --per_device_eval_batch_size 128 \
@@ -25,5 +26,5 @@ python run_qa.py \
 --analog_optimizer AnalogAdam \
 --analog_lr 0.00005 \
 --num_evaluation_drift_values 7 \
---num_evaluation_repetition 1
+--num_evaluation_repetition 10
 

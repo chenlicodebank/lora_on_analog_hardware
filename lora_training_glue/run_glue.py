@@ -139,15 +139,7 @@ def gen_rpu_config(output_noise_level=0.04, pcm_model="NeuroSoCStandard_Gmax20")
     # rpu_config.forward.noise_management = NoiseManagementType.ABS_MAX
     # rpu_config.pre_post.input_range.enable = False
 
-    if pcm_model == "NeuroSoCStandard_Gmax20":
-        rpu_config.noise_model = NeuroSoCStandardModel(g_max=20)
-    elif pcm_model == "NeuroSoCStandard_Gmax55":
-        rpu_config.noise_model = NeuroSoCStandardModel(g_max=55)
-    elif pcm_model == "NeuroSoCLamina_Gmax20":
-        rpu_config.noise_model = NeuroSoCLaminaModel(g_max=20)
-    elif pcm_model == "NeuroSoCLamina_Gmax55":
-        rpu_config.noise_model = NeuroSoCLaminaModel(g_max=55)
-    elif pcm_model == "PCM_Gmax25":
+    if pcm_model == "PCM_Gmax25":
         rpu_config.noise_model = PCMLikeNoiseModel(g_max=25.0)
     else:
         raise ValueError(f"Unknown PCM model: {pcm_model}")
@@ -534,9 +526,6 @@ def main():
 
 
 
-    # peft_config = LoraConfig(r=8, lora_alpha=32,
-    #                          lora_dropout=0.pcm_adcnoise0,
-    #                          target_modules=["dense"],)
     peft_config = LoraConfig(r=8, lora_alpha=32,
                              lora_dropout=0.1,
                              target_modules=["dense","query","key","value","qa_outputs","embedding_transformation"],)

@@ -1,5 +1,5 @@
 export TASK_NAME=cola
-export EXP_INDEX=3
+export EXP_INDEX=1
 python run_glue.py \
   --model_name_or_path google/mobilebert-uncased \
   --task_name $TASK_NAME \

@@ -67,8 +67,6 @@ from aihwkit.simulator.tiles.inference_torch import TorchInferenceTile
 from aihwkit.simulator.tiles.inference import InferenceTile
 from aihwkit.simulator.presets.utils import IOParameters
 from aihwkit.inference.noise.pcm import PCMLikeNoiseModel
-from aihwkit.inference.noise.neurosoc_lamina import NeuroSoCLaminaModel
-from aihwkit.inference.noise.neurosoc_standard import NeuroSoCStandardModel
 from aihwkit.inference.compensation.drift import GlobalDriftCompensation
 from aihwkit.simulator.configs import InferenceRPUConfig, TorchInferenceRPUConfig
 from aihwkit.simulator.presets import PresetIOParameters

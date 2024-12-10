@@ -33,10 +33,9 @@ This repository provides code for reproducing the [Hardware-Aware LoRA Training]
    
    If aihwkit doesn't work, use [advanced installation](https://aihwkit.readthedocs.io/en/latest/advanced_install.html).
 
-
 ---
 
-## Hardware-Aware Training
+## Hardware-Aware Training on SQuAD
 
 This section provides a straightforward application of Hardware-Aware Training using MobileBERT on SQuAD1.1. 
 
@@ -68,16 +67,80 @@ python run_qa.py \
   --analog_lr 0.00005 \
   --num_evaluation_drift_values 7 \
   --num_evaluation_repetition 10
-
 ```
-
-
-**Supported Tasks:**
-- `MRPC`, `SST-2`, `MNLI`, `QNLI`, and more.
 
 ---
 
-## Citation
+## Hardware-Aware LoRA Training on SQuAD
+
+This section provides an application of the Hardware-Aware LoRA Training using MobileBERT on SQuAD1.1. 
+
+### Example:
+```
+cd lora_training
+```
+```
+export SQUAD_DIR=pwd/data
+export SQUAD_DIR=pwd/data
+python run_qa.py \
+   --model_name_or_path google/mobilebert-uncased --dataset_name squad \
+   --do_train \
+   --report_to wandb \
+   --logging_steps 100 \
+   --do_eval \
+   --save_strategy epoch \
+   --per_device_train_batch_size 32 \
+   --per_device_eval_batch_size 128 \
+   --weight_decay 0.0001 \
+   --num_train_epochs 15 \
+   --max_seq_length 320 \
+   --evaluation_strategy epoch \
+   --doc_stride 128 \
+   --warmup_steps 0 \
+   --output_dir ./squad_models_train/ \
+   --pcm_model PCM_Gmax25 \
+   --output_noise_level 0.04 \
+   --analog_optimizer AnalogAdam \
+   --analog_lr 0.0002 \
+   --num_evaluation_drift_values 7 \
+   --num_evaluation_repetition 10
+```
+
+---
+
+## Hardware-Aware LoRA Training on GLUE
+
+This section provides an application of the Hardware-Aware LoRA Training using MobileBERT on GLUE. The example is on CoLA, check shell scripts in lora_training_glue for other GLUE subtasks.
+
+### Example:
+```
+cd lora_training_glue
+```
+```
+export TASK_NAME=cola
+export EXP_INDEX=1
+python run_glue.py \
+  --model_name_or_path google/mobilebert-uncased \
+  --task_name $TASK_NAME \
+  --ignore_mismatched_sizes \
+  --report_to wandb \
+  --logging_steps 100 \
+  --do_train \
+  --do_eval \
+  --max_seq_length 128 \
+  --per_device_train_batch_size 32 \
+  --learning_rate 2e-4 \
+  --num_train_epochs 15 \
+  --output_dir ./results/$TASK_NAME/$EXP_INDEX \
+  --pcm_model PCM_Gmax25 \
+  --output_noise_level 0.04 \
+  --analog_optimizer AnalogAdam \
+  --analog_lr 0.0002 \
+  --num_evaluation_drift_values 7 \
+  --num_evaluation_repetition 10
+```
+
+---
 
 ## Citation
 

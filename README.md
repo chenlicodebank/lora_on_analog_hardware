@@ -7,11 +7,10 @@ This repository provides code for reproducing the [Hardware-Aware LoRA Training]
 
 ## Table of Contents
 - [Installation](#installation)
-- [Hardware-Aware Training on SQuAD](#hardware-aware-training)
-- [Hardware-Aware LoRA Training on SQuAD](#hardware-aware-lora-training)
-- [Hardware-Aware LoRA Training on GLUE](#training-on-glue)
-- [Contributing](#contributing)
-- [License](#license)
+- [Hardware-Aware Training on SQuAD](#hardware-aware-training-on-squad)
+- [Hardware-Aware LoRA Training on SQuAD](#hardware-aware-lora-training-on-squad)
+- [Hardware-Aware LoRA Training on GLUE](#hardware-aware-lora-training-on-glue)
+- [Citation](#citation)
 
 ---
 
@@ -37,7 +36,7 @@ This repository provides code for reproducing the [Hardware-Aware LoRA Training]
 
 ## Hardware-Aware Training on SQuAD
 
-This section provides a straightforward application of Hardware-Aware Training using MobileBERT on SQuAD1.1. 
+This section provides a straightforward application of Hardware-Aware Training with MobileBERT on the SQuAD v1.1 dataset.
 
 ### Example:
 ```
@@ -73,7 +72,7 @@ python run_qa.py \
 
 ## Hardware-Aware LoRA Training on SQuAD
 
-This section provides an application of the Hardware-Aware LoRA Training using MobileBERT on SQuAD1.1. 
+This section provides an application of the Hardware-Aware LoRA Training with MobileBERT on the SQuAD v1.1 dataset.
 
 ### Example:
 ```
@@ -110,7 +109,7 @@ python run_qa.py \
 
 ## Hardware-Aware LoRA Training on GLUE
 
-This section provides an application of the Hardware-Aware LoRA Training using MobileBERT on GLUE. The example is on CoLA, check shell scripts in lora_training_glue for other GLUE subtasks.
+This section provides an application of the Hardware-Aware LoRA Training with MobileBERT on GLUE. The example is on CoLA, check shell scripts in [lora_training_glue](https://github.com/chenlicodebank/lora_on_analog_hardware/tree/main/lora_training_glue) for other GLUE subtasks.
 
 ### Example:
 ```

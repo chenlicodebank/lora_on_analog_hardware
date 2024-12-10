@@ -3,6 +3,8 @@
 
 This repository provides code for reproducing the [Hardware-Aware LoRA Training](https://arxiv.org/pdf/2411.17367) results.
 
+The 
+
 ---
 
 ## Table of Contents
@@ -36,7 +38,7 @@ This repository provides code for reproducing the [Hardware-Aware LoRA Training]
 
 ## Hardware-Aware Training on SQuAD
 
-This section provides a straightforward application of Hardware-Aware Training with MobileBERT on the SQuAD v1.1 dataset.
+This section provides a straightforward application of Hardware-Aware Training with MobileBERT on the SQuAD v1.1 dataset. 
 
 ### Example:
 ```
@@ -72,7 +74,7 @@ python run_qa.py \
 
 ## Hardware-Aware LoRA Training on SQuAD
 
-This section provides an application of the Hardware-Aware LoRA Training with MobileBERT on the SQuAD v1.1 dataset.
+This section provides an application of the Hardware-Aware LoRA Training with MobileBERT on the SQuAD v1.1 dataset. In traditional Hardware-Aware Training, the process typically involves two steps: fine-tuning the model in full precision, and then using the fine-tuned model for hardware-aware training. However, in Hardware-Aware LoRA Training, we skip the full precision fine-tuning step and directly use the pretrained model. Specifically, we use `--model_name_or_path google/mobilebert-uncased` instead of `--model_name_or_path csarron/mobilebert-uncased-squad-v1`. This approach retains the flexibility for post-deployment adaptations to new tasks (e.g., GLUE) and hardware configurations (e.g., ADC bit settings), see [paper](https://arxiv.org/pdf/2411.17367) for details.
 
 ### Example:
 ```

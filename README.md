@@ -3,8 +3,6 @@
 
 This repository provides code for reproducing the [Hardware-Aware LoRA Training](https://arxiv.org/pdf/2411.17367) results.
 
-The 
-
 ---
 
 ## Table of Contents

@@ -154,6 +154,8 @@ We employ naive [LoRA](https://arxiv.org/pdf/2106.09685) to keep the implementat
 
 Additionally, the final performance is influenced by the settings in AIHWKIT. Most tunable parameters are configurable through the `gen_rpu_config` function.
 
+The training hyperparameters such as the learning rate and the number of epochs, are selected using a heuristic approach. Further fine-tuning of these hyperparameters may enhance performance.
+
 
 ---
 

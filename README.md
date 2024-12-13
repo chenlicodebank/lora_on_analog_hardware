@@ -148,7 +148,7 @@ python run_glue.py \
 The evaluated model is MobileBERT as its parameters (25.3M) can fit on modern analog chips. The proposed method can be applied to other models by specifying `--model_name_or_path`. The results on BERT\_BASE (110M) and BERT\_LARGE (340M) can be found on [paper](https://arxiv.org/pdf/2411.17367).
 
 ---
-## BetterLoRA and AIHWKIT settings
+## Better LoRA and AIHWKIT settings
 
 We employ naive [LoRA](https://arxiv.org/pdf/2106.09685) to keep the implementation simple and establish baseline results. Leveraging more advanced LoRA variants has the potential to achieve superior performance compared to the results presented in our paper.
 

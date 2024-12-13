@@ -150,7 +150,7 @@ The evaluated model is MobileBERT as its parameters (25.3M) can fit on modern an
 ---
 ## Better LoRA and AIHWKIT settings
 
-We employ naive [LoRA](https://arxiv.org/pdf/2106.09685) to keep the implementation simple and establish baseline results. Leveraging more advanced LoRA variants has the potential to achieve superior performance compared to the results presented in our paper.
+We employ naive [LoRA](https://arxiv.org/pdf/2106.09685) to keep the implementation simple and establish baseline results. Leveraging more advanced LoRA variants and better LoRA hyperparameters have the potential to achieve superior performance compared to the results presented in our paper.
 
 Additionally, the final performance is influenced by the settings in AIHWKIT. Most tunable parameters are configurable through the `gen_rpu_config` function.
 

@@ -11,6 +11,7 @@ This repository provides code for reproducing the [Hardware-Aware LoRA Training]
 - [Hardware-Aware LoRA Training on SQuAD](#hardware-aware-lora-training-on-squad)
 - [Hardware-Aware LoRA Training on GLUE](#hardware-aware-lora-training-on-glue)
 - [Scaling](#scaling)
+- [Better LoRA and AIHWKIT Settings](#better-lora-and-aihwkit-settings)
 - [Citation](#citation)
 
 ---
@@ -146,6 +147,15 @@ python run_glue.py \
 
 The evaluated model is MobileBERT as its parameters (25.3M) can fit on modern analog chips. The proposed method can be applied to other models by specifying `--model_name_or_path`. The results on BERT\_BASE (110M) and BERT\_LARGE (340M) can be found on [paper](https://arxiv.org/pdf/2411.17367).
 
+---
+## BetterLoRA and AIHWKIT settings
+
+We employ naive [LoRA](https://arxiv.org/pdf/2106.09685) to keep the implementation simple and establish baseline results. Leveraging more advanced LoRA variants has the potential to achieve superior performance compared to the results presented in our paper.
+
+Additionally, the final performance is influenced by the settings in AIHWKIT. Most tunable parameters are configurable through the `gen_rpu_config` function.
+
+
+---
 
 ## Citation
 

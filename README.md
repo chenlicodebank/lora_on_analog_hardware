@@ -147,7 +147,7 @@ python run_glue.py \
 
 ## Scaling
 
-The evaluated model is MobileBERT as its parameters (25.3M) can fit on modern analog chips. The proposed method can be applied to other models by specifying `--model_name_or_path`. The results on BERT\_BASE (110M) and BERT\_LARGE (340M) can be found on [paper](https://arxiv.org/pdf/2411.17367).
+The evaluated model is MobileBERT as its parameters (25.3M) can fit on modern analog chips. The proposed method can be applied to other models, simply by specifying `--model_name_or_path` to the desired model in the above scripts. The results on BERT\_BASE (110M) and BERT\_LARGE (340M) can be found on [paper](https://arxiv.org/pdf/2411.17367).
 
 ---
 ## Better LoRA and AIHWKIT settings

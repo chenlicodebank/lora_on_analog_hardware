@@ -7,5 +7,5 @@ datasets>=3.1.0
 evaluate>=0.4.3
 peft>=0.14.0
 transformers>=4.47.0
-aihwkit>=9.0
+aihwkit>=0.9.0
 wandb

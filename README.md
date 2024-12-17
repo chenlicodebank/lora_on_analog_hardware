@@ -21,6 +21,8 @@ This repository provides code for reproducing the [Hardware-Aware LoRA Training]
 
 1. **Clone the Repository:**
    ```
+   conda create -n analog_lora python=3.9
+   conda activate analog_lora
    git clone https://github.com/chenlicodebank/lora_on_analog_hardware.git
    cd lora_on_analog_hardware
    ```

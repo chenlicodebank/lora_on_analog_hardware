@@ -4,7 +4,6 @@ python run_qa.py \
 --do_train \
 --report_to wandb \
 --logging_steps 100 \
---do_eval \
 --save_strategy epoch \
 --per_device_train_batch_size 32 \
 --per_device_eval_batch_size 128 \

@@ -804,11 +804,37 @@ def main():
             checkpoint = training_args.resume_from_checkpoint
         elif last_checkpoint is not None:
             checkpoint = last_checkpoint
+
+        # Override save_checkpoint in trainer to prevent HuggingFace's default saving
+        original_save_checkpoint = trainer._save_checkpoint
+
+        def custom_save_checkpoint(*args, **kwargs):
+            try:
+                # Only save the analog model state dict
+                output_dir = os.path.join(training_args.output_dir, f"checkpoint-{trainer.state.global_step}")
+                os.makedirs(output_dir, exist_ok=True)
+                torch_save(model.state_dict(), os.path.join(output_dir, "pytorch_model.bin"))
+                # Save the tokenizer
+                tokenizer.save_pretrained(output_dir)
+            except Exception as e:
+                logger.warning(f"Error saving checkpoint: {str(e)}")
+
+        trainer._save_checkpoint = custom_save_checkpoint
+
+        # Run training
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
-        # trainer.save_model()  # Saves the tokenizer too for easy upload
-        torch_save(model.state_dict(), "./saved_chkpt.pt")
 
+        # Save final model
+        final_dir = os.path.join(training_args.output_dir, "final")
+        os.makedirs(final_dir, exist_ok=True)
+        torch_save(model.state_dict(), os.path.join(final_dir, "pytorch_model.bin"))
+        torch_save(model.state_dict(), "./saved_chkpt.pt")  # Also save to original location for compatibility
+        tokenizer.save_pretrained(final_dir)
 
+        # Restore original save_checkpoint
+        trainer._save_checkpoint = original_save_checkpoint
+
+        # Handle metrics logging
         metrics = train_result.metrics
         max_train_samples = (
             data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)

@@ -1,7 +1,7 @@
 
 # LoRA on analog hardware
 
-This repository provides code for reproducing the [Hardware-Aware LoRA Training](https://arxiv.org/pdf/2411.17367) results.
+This repository provides code for reproducing the [Efficient Deployment of Transformer Models in Analog In-Memory Computing Hardware](https://arxiv.org/pdf/2411.17367) results.
 
 ---
 

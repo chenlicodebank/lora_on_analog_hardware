@@ -1,7 +1,8 @@
 
 # LoRA on analog hardware
 
-This repository provides code for reproducing the [Efficient Deployment of Transformer Models in Analog In-Memory Computing Hardware](https://arxiv.org/pdf/2411.17367) results.
+This repository provides code for reproducing the [Efficient transformer adaptation for analog in-memory computing via
+low-rank adapters](https://arxiv.org/html/2411.17367v3) results.
 
 ---
 
@@ -12,6 +13,8 @@ This repository provides code for reproducing the [Efficient Deployment of Trans
 - [Hardware-Aware LoRA Training on GLUE](#hardware-aware-lora-training-on-glue)
 - [Scaling](#scaling)
 - [Better LoRA and AIHWKIT Settings](#better-lora-and-aihwkit-settings)
+- [Hardware-Aware LoRA Instruction Tuning](#hardware-aware-lora-instruction-tuning)
+- [Hardware-Aware Reinforcement Learning with GRPO](#hardware-aware-reinforcement-learning-with-grpo)
 - [Citation](#citation)
 
 ---
@@ -144,7 +147,6 @@ python run_glue.py \
 ```
 
 ---
-
 ## Scaling
 
 The evaluated model is MobileBERT as its parameters (25.3M) can fit on modern analog chips. The proposed method can be applied to other models, simply by specifying `--model_name_or_path` to the desired model in the above scripts. The results on BERT\_BASE (110M) and BERT\_LARGE (340M) can be found on [paper](https://arxiv.org/pdf/2411.17367).
@@ -160,6 +162,24 @@ The training hyperparameters such as the learning rate and the number of epochs,
 
 
 ---
+
+## Hardware-Aware LoRA Instruction Tuning
+
+This section provides an application of Hardware-Aware LoRA Training for instruction tuning using **Llama 3.1-8B** on the **Alpaca dataset**. The implementation leverages **aihwkit-lightning** for analog hardware simulation and supports both digital and analog training modes with comprehensive evaluation benchmarks.
+
+For detailed setup and evaluation scripts, check the [instruction_tuning README](instruction_tuning/README.md).
+
+---
+
+## Hardware-Aware Reinforcement Learning with GRPO
+
+This section provides an application of Hardware-Aware LoRA Training for reinforcement learning using **GRPO (Group Relative Policy Optimization)** with **Llama 3.1-8B** on the **GSM8K** mathematical reasoning dataset. The implementation uses **aihwkit-lightning** for analog hardware simulation.
+
+For detailed setup and configuration parameters, check the [reinforcement_learning README](reinforcement_learning/README.md).
+
+---
+
+
 
 ## Citation
 

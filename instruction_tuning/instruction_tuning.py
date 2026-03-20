@@ -84,14 +84,18 @@ def parse_args():
                         help="Whether to use analog hardware model")
     parser.add_argument('--pcm_model', type=str, default="PCM_Gmax25", help="PCM model to use")
     parser.add_argument('--output_noise_level', type=float, default=0, help="Noise level to use in RPU config")
+    parser.add_argument('--weight_noise_level', type=float, default=0.067,
+                        help="Weight noise level for analog training")
     parser.add_argument('--analog_optimizer', type=str, default=None,
                         help="Analog optimizer to use (options: 'AnalogSGD', 'AnalogAdam'). If not provided, no analog optimizer is used.")
     parser.add_argument('--analog_lr', type=float, default=0.000005,
                         help="Learning rate for the analog optimizer")
+    parser.add_argument('--max_steps', type=int, default=-1,
+                        help="Max training steps (-1 for full epoch)")
     parser.add_argument('--debug', action="store_true", default=False,
                         help="Debug mode")
     # Evaluation mode arguments
-    parser.add_argument('--mode', type=str, default='train_only', 
+    parser.add_argument('--mode', type=str, default='train_only',
                         choices=['train_only', 'eval_original', 'train_and_eval', 'eval_lora'],
                         help="Execution mode: train_only, eval_original, train_and_eval, eval_lora")
     parser.add_argument('--lora_path', type=str, default="saved_lora_models",
@@ -106,9 +110,11 @@ args = parse_args()  # parse command line arguments
 print(f"Running in mode: {args.mode}")
 
 # Validate mode-specific requirements
-if args.mode == 'eval_lora' and not os.path.exists(args.lora_path):
-    print(f"Error: LoRA path '{args.lora_path}' not found for eval_lora mode")
-    sys.exit(1)
+if args.mode == 'eval_lora':
+    lora_check_dir = os.path.join(args.lora_path, os.environ.get("WANDB_NAME", "default"))
+    if not os.path.exists(lora_check_dir):
+        print(f"Error: LoRA path '{lora_check_dir}' not found for eval_lora mode")
+        sys.exit(1)
 
 
 def get_last_run_id():
@@ -153,6 +159,9 @@ def init_wandb(args):
     # Determine if we are in a distributed setting
     is_rank_0 = True  # TODO: enable distributed training
 
+    wandb_project = os.environ.get("WANDB_PROJECT", "debug")
+    wandb_name = os.environ.get("WANDB_NAME", os.path.basename(os.getcwd()))
+
     if is_rank_0:
         # Retrieve the last run ID if --resume is set
         wandb_run_id = get_last_run_id() if args.resume else None
@@ -161,8 +170,8 @@ def init_wandb(args):
             print(f"Resuming previous WandB run: {wandb_run_id}")
             # Initialize WandB with resumption
             wandb.init(
-                project="debug",
-                name=os.path.basename(os.getcwd()),
+                project=wandb_project,
+                name=wandb_name,
                 resume="allow",
                 id=wandb_run_id,
             )
@@ -170,8 +179,8 @@ def init_wandb(args):
             print("Starting a new WandB run.")
             # Initialize WandB as new run
             wandb.init(
-                project="debug",
-                name=os.path.basename(os.getcwd()),
+                project=wandb_project,
+                name=wandb_name,
             )
 
         # Store the run ID if resumed
@@ -186,29 +195,30 @@ def init_wandb(args):
 init_wandb(args)
 
 
-def gen_lightning_rpu_config(output_noise_level=0.04):
+def gen_lightning_rpu_config(output_noise_level=0.04, weight_noise_level=0.067):
     """
-    CORRECTED version of RPU config for aihwkit-lightning
+    Generate RPU config for aihwkit-lightning.
+
+    Args:
+        output_noise_level (float): Standard deviation of output noise (default: 0.04)
+        weight_noise_level (float): Standard deviation of weight noise (default: 0.067)
     """
     rpu_config = TorchInferenceRPUConfig()
 
-    # Mapping configuration (same as AIHWKIT)
+    # Mapping configuration
     rpu_config.mapping.digital_bias = True
     rpu_config.mapping.weight_scaling_omega = 1.0
     rpu_config.mapping.weight_scaling_columnwise = True
     rpu_config.mapping.learn_out_scaling = True
     rpu_config.mapping.out_scaling_columnwise = True
 
-    # Weight modifier - corrected for aihwkit-lightning API
-    rpu_config.modifier.std_dev = 0.067
-    # rpu_config.modifier.std_dev = 0
-    # rpu_config.modifier.type = WeightModifierType.ADD_NORMAL  #has deprecated
-    # rpu_config.modifier.noise_type = WeightNoiseInjectionType.ADD_NORMAL
+    # Weight modifier
+    rpu_config.modifier.std_dev = weight_noise_level
     rpu_config.modifier.noise_type = WeightNoiseInjectionType.ADD_NORMAL_PER_CHANNEL
 
-    # Weight quantization - add quantization configuration
+    # Weight quantization
     rpu_config.modifier.quantization_type = WeightQuantizationType.NONE
-    rpu_config.modifier.res = 0.0  # No quantization resolution by default
+    rpu_config.modifier.res = 0.0
 
     # Forward pass parameters
     rpu_config.forward = IOParameters()
@@ -216,29 +226,27 @@ def gen_lightning_rpu_config(output_noise_level=0.04):
     rpu_config.forward.is_perfect = False
 
     # Weight clipping
-    # rpu_config.clip.type = WeightClipType.LAYER_GAUSSIAN
-    rpu_config.clip.type = WeightClipType.LAYER_GAUSSIAN_PER_CHANNEL
     rpu_config.clip.type = WeightClipType.NONE
 
-    # rpu_config.clip.sigma = 9.0
-
-    # Input/Output quantization - complete configuration
-    # rpu_config.forward.inp_res = 1 / (2**16 - 2)  # 8-bit input resolution
-    # rpu_config.forward.out_res = 1 / (2**16 - 2)  # 8-bit output resolution
+    # Input/Output quantization
     rpu_config.forward.inp_res = -1  # no input quantization
     rpu_config.forward.out_res = -1  # no output quantization
-    # rpu_config.forward.out_bound = 256  # A high output bounds initially
-    # rpu_config.forward.inp_bound = 256   # No input bounds (unlimited)
 
-    # # Input range learning configuration - enable if needed
-    # rpu_config.pre_post.input_range.enable = False  # Start with enabled
-    # rpu_config.pre_post.input_range.lr = 0
-    # rpu_config.pre_post.input_range.learn_input_range = True
-    # rpu_config.pre_post.input_range.init_value = 3.0
-    # rpu_config.pre_post.input_range.init_from_data = 500
-    # rpu_config.pre_post.input_range.init_std_alpha = 18.0
-    # rpu_config.pre_post.input_range.input_range_decay = 0.01
-    # rpu_config.pre_post.input_range.input_range_input_min_percentage = 0.95
+    # Input range clipping: only enable when output noise is used.
+    # When enabled, input_range is initialized to init_value and calibrated from data
+    # during forward passes where training=True. However, model.generate() internally
+    # sets training=False, so input_range never gets calibrated during generation.
+    # The uncalibrated input_range (init_value=3.0) clips activations and destroys
+    # model output. Input range is only needed when out_noise > 0.
+    needs_input_range = output_noise_level > 0
+    rpu_config.pre_post.input_range.enable = needs_input_range
+    rpu_config.pre_post.input_range.learn_input_range = True
+    rpu_config.pre_post.input_range.init_value = 3.0
+    rpu_config.pre_post.input_range.init_from_data = 100
+    rpu_config.pre_post.input_range.init_std_alpha = 3.0
+    rpu_config.pre_post.input_range.decay = 0.001
+    rpu_config.pre_post.input_range.input_min_percentage = 0.95
+
     return rpu_config
 
 max_seq_length = 2048 # Choose any! We auto support RoPE Scaling internally!
@@ -304,15 +312,19 @@ if args.use_analog:
         if ('lora_A' in name or 'lora_B' in name or name.endswith('lm_head')):
             exclude_modules.append(name)
 
+    rpu_config = gen_lightning_rpu_config(
+        output_noise_level=args.output_noise_level,
+        weight_noise_level=args.weight_noise_level,
+    )
     model = convert_to_analog(
         model,
-        gen_lightning_rpu_config(output_noise_level=args.output_noise_level),
+        rpu_config,
         exclude_modules=exclude_modules,
         inplace=True  # This avoids the deepcopy that's causing OOM
     )
     print("Model converted to analog hardware")
     print("rpu config:")
-    print(gen_lightning_rpu_config(output_noise_level=args.output_noise_level))
+    print(rpu_config)
 else:
     print("Using digital model (no analog conversion)")
 
@@ -335,24 +347,24 @@ if args.use_analog:
 
     print(f"Found {len(analog_layers_after_conversion)} analog layers after conversion")
 
+    analog_layers_func = lambda: analog_layers_after_conversion
     if args.analog_optimizer == "AnalogSGD":
         if len(analog_layers_after_conversion) > 0:
-            optimizer = AnalogOptimizer(SGD, analog_layers_after_conversion, model.parameters(), lr=args.analog_lr, momentum=0.9)
+            optimizer = AnalogOptimizer(SGD, analog_layers_func, model.parameters(), lr=args.analog_lr, momentum=0.9)
             print(f"Created AnalogSGD optimizer with {len(analog_layers_after_conversion)} analog layers")
         else:
             print("No analog layers found, using regular SGD")
             optimizer = SGD(model.parameters(), lr=args.analog_lr, momentum=0.9)
     elif args.analog_optimizer == "AnalogAdam":
         if len(analog_layers_after_conversion) > 0:
-            # optimizer = AnalogOptimizer(AdamW, analog_layers_after_conversion, model.parameters(), lr=args.analog_lr)
-            optimizer = AnalogOptimizer(AdamW, analog_layers_after_conversion, model.parameters(), 
+            optimizer = AnalogOptimizer(AdamW, analog_layers_func, model.parameters(),
                                         lr=args.analog_lr, betas=(0.9, 0.999), weight_decay=0.01)
             print(f"Created AnalogAdam optimizer with {len(analog_layers_after_conversion)} analog layers")
         else:
             print("No analog layers found, using regular AdamW")
             optimizer = AdamW(model.parameters(), lr=args.analog_lr)
         if args.debug:
-            optimizer = AnalogOptimizer(AdamW, analog_layers_after_conversion, model.parameters(), lr=0, weight_decay=0)
+            optimizer = AnalogOptimizer(AdamW, analog_layers_func, model.parameters(), lr=0, weight_decay=0)
             print(f"Created AnalogAdam optimizer with {len(analog_layers_after_conversion)} analog layers, lr=0, weight_decay=0 for debug")
     else:
         optimizer = None
@@ -421,7 +433,7 @@ dataset = dataset.map(formatting_prompts_func, batched = True,)
 
 """<a name="Train"></a>
 ### Train the model
-Now let's use Huggingface TRL's `SFTTrainer`! More docs here: [TRL SFT docs](https://huggingface.co/docs/trl/sft_trainer). We do 60 steps to speed things up, but you can set `num_train_epochs=1` for a full run, and turn off `max_steps=None`. We also support TRL's `DPOTrainer`!
+Now let's use Huggingface TRL's `SFTTrainer`! More docs here: [TRL SFT docs](https://huggingface.co/docs/trl/sft_trainer). By default trains for 1 full epoch. Use `--max_steps N` to limit training steps for quick testing.
 """
 
 
@@ -445,14 +457,14 @@ if args.mode in ['train_only', 'train_and_eval']:
             gradient_accumulation_steps = 4,
             warmup_steps = 5,
             num_train_epochs = 1, # Set this for 1 full training run.
-            # max_steps = 60,
+            max_steps = args.max_steps if args.max_steps > 0 else -1,
             learning_rate = 2e-4,
             logging_steps = 1,
             optim = "adamw_8bit",
             weight_decay = 0.01,
             lr_scheduler_type = "linear",
             seed = 3407,
-            output_dir = "outputs",
+            output_dir = os.path.join("outputs", os.environ.get("WANDB_NAME", "default")),
             report_to = "wandb", # Use this for WandB etc
         ),
     )
@@ -491,9 +503,23 @@ else:
     print("SKIPPING TRAINING (evaluation-only mode)")
     print("="*60)
 
+# Load trained LoRA weights for eval_lora mode
+if args.mode == 'eval_lora':
+    lora_load_dir = os.path.join(args.lora_path, os.environ.get("WANDB_NAME", "default"))
+    if os.path.exists(lora_load_dir):
+        print(f"Loading trained LoRA adapter from {lora_load_dir}")
+        model.load_adapter(lora_load_dir, adapter_name="trained_adapter")
+        model.set_adapter("trained_adapter")
+        print(f"Active adapter: {model.active_adapter}")
+    else:
+        print(f"Error: LoRA weights not found at {lora_load_dir}")
+        sys.exit(1)
+
 """<a name="Inference"></a>
-### Inference
-Let's run the model! You can change the instruction and input - leave the output blank!
+### Qualitative Evaluation (Inference)
+Run the model on a few example prompts for qualitative inspection.
+- eval_original: evaluates base model with random-initialized LoRA (i.e., before training)
+- eval_lora: evaluates base model with trained LoRA weights loaded from --lora_path
 
 
 """
@@ -536,10 +562,11 @@ To save the final model as LoRA adapters, either use Huggingface's `push_to_hub`
 **[NOTE]** This ONLY saves the LoRA adapters, and not the full model. To save to 16bit or GGUF, scroll down!
 """
 
-model.save_pretrained("saved_lora_models")  # Local saving
-tokenizer.save_pretrained("saved_lora_models")
-# model.push_to_hub("your_name/lora_model", token = "...") # Online saving
-# tokenizer.push_to_hub("your_name/lora_model", token = "...") # Online saving
+# Only save LoRA after training (not in eval-only modes)
+if args.mode in ['train_only', 'train_and_eval']:
+    lora_save_dir = os.path.join("saved_lora_models", os.environ.get("WANDB_NAME", "default"))
+    model.save_pretrained(lora_save_dir)  # Local saving
+    tokenizer.save_pretrained(lora_save_dir)
 
 """Now if you want to load the LoRA adapters we just saved for inference, set `False` to `True`:"""
 

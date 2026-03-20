@@ -79,8 +79,12 @@ def parse_args():
                         help="Whether to evaluate with PCM noise model applied (default: False)")
     parser.add_argument('--pcm_max_inp_size', type=int, default=512,
                         help="Max input size for PCM noise model tiling (default: 512)")
+    parser.add_argument('--discretised_state', type=int, default=0,
+        help="Number of discrete weight states (0=disabled, 12=Runze's config)")
+    parser.add_argument('--weight_clip_type', type=str, default='none',
+        choices=['none', 'layer_gaussian'])
+    parser.add_argument('--weight_clip_sigma', type=float, default=2.0)
 
-    
     # Evaluation configuration
     parser.add_argument('--eval_batch_size', type=int, default=8,
                         help="Batch size for evaluation")
@@ -91,7 +95,10 @@ def parse_args():
 
 args = parse_args()  # parse command line arguments
 
-
+# Derive run name from WANDB_NAME for organizing outputs
+run_name = os.environ.get("WANDB_NAME", "default")
+output_dir = os.path.join("outputs", run_name)
+lora_save_dir = os.path.join("saved_lora_models", run_name)
 
 
 print(f"Running in mode: {args.mode}")
@@ -107,6 +114,13 @@ print(f"  Evaluate with PCM model: {args.evaluate_with_pcm_model}")
 if args.evaluate_with_pcm_model:
     print(f"  PCM max input size: {args.pcm_max_inp_size}")
 print(f"  Debug mode: {args.debug}")
+print(f"  Run name: {run_name}")
+print(f"  Output dir: {output_dir}")
+print(f"  LoRA save dir: {lora_save_dir}")
+
+# Use lora_save_dir as default lora_path if not explicitly provided
+if args.lora_path == "saved_lora_models":
+    args.lora_path = lora_save_dir
 
 # Validate requirements for eval_lora mode
 if args.mode == 'eval_lora' and not os.path.exists(args.lora_path):
@@ -165,7 +179,7 @@ def init_wandb(args):
             # Initialize WandB with resumption
             wandb.init(
                 project="analora",
-                name=os.path.basename(os.getcwd()),
+                name=os.environ.get("WANDB_NAME", os.path.basename(os.getcwd())),
                 resume="allow",
                 id=wandb_run_id,
             )
@@ -174,7 +188,7 @@ def init_wandb(args):
             # Initialize WandB as new run
             wandb.init(
                 project="analora",
-                name=os.path.basename(os.getcwd()),
+                name=os.environ.get("WANDB_NAME", os.path.basename(os.getcwd())),
             )
 
         # Store the run ID if resumed
@@ -189,15 +203,20 @@ def init_wandb(args):
 init_wandb(args)
 
 
-def gen_lightning_rpu_config(output_noise_level=0, weight_noise_level=0.03, eval_with_noise=False):
+def gen_lightning_rpu_config(output_noise_level=0, weight_noise_level=0.03,
+                            eval_with_noise=False, discretised_state=0,
+                            weight_clip_type='none', weight_clip_sigma=2.0):
     """
     Generate RPU config for aihwkit-lightning
-    
+
     Args:
         output_noise_level (float): Standard deviation of output noise (default: 0)
         weight_noise_level (float): Standard deviation of weight noise (default: 0.03)
         eval_with_noise (bool): Whether to apply noise during evaluation (default: False)
-    
+        discretised_state (int): Number of discrete weight states (0=disabled, 12=Runze's config)
+        weight_clip_type (str): Weight clipping type ('none' or 'layer_gaussian')
+        weight_clip_sigma (float): Sigma for layer_gaussian clipping (default: 2.0)
+
     Returns:
         TorchInferenceRPUConfig: Configured RPU config for analog inference
     """
@@ -205,26 +224,35 @@ def gen_lightning_rpu_config(output_noise_level=0, weight_noise_level=0.03, eval
     print(f"  Weight noise std_dev: {weight_noise_level}")
     print(f"  Output noise level: {output_noise_level}")
     print(f"  Eval with noise: {eval_with_noise}")
-        
+    print(f"  Discretised state: {discretised_state}")
+    print(f"  Weight clip type: {weight_clip_type}")
+    print(f"  Weight clip sigma: {weight_clip_sigma}")
+
     rpu_config = TorchInferenceRPUConfig()
 
-    # Mapping configuration (same as AIHWKIT)
+    # Mapping configuration
     rpu_config.mapping.digital_bias = True
     rpu_config.mapping.weight_scaling_omega = 1.0
     rpu_config.mapping.weight_scaling_columnwise = True
     rpu_config.mapping.learn_out_scaling = True
     rpu_config.mapping.out_scaling_columnwise = True
 
-    # Weight modifier - corrected for aihwkit-lightning API
+    # Weight modifier
     rpu_config.modifier.std_dev = weight_noise_level
     rpu_config.modifier.noise_type = WeightNoiseInjectionType.ADD_NORMAL_PER_CHANNEL
-    
+
     # CRITICAL: Enable noise during evaluation/test time when eval_with_noise=True
     rpu_config.modifier.enable_during_test = eval_with_noise
 
-    # Weight quantization - add quantization configuration
-    rpu_config.modifier.quantization_type = WeightQuantizationType.NONE
-    rpu_config.modifier.res = 0.0  # No quantization resolution by default
+    # Weight quantization / discretization
+    if discretised_state > 0:
+        # DISCRETIZE_PER_CHANNEL scales each output channel by its own max weight,
+        # giving all n_states levels to every channel.
+        rpu_config.modifier.quantization_type = WeightQuantizationType.DISCRETIZE_PER_CHANNEL
+        rpu_config.modifier.res = 1.0 / discretised_state
+    else:
+        rpu_config.modifier.quantization_type = WeightQuantizationType.NONE
+        rpu_config.modifier.res = 0.0
 
     # Forward pass parameters
     rpu_config.forward = IOParameters()
@@ -232,117 +260,86 @@ def gen_lightning_rpu_config(output_noise_level=0, weight_noise_level=0.03, eval
     rpu_config.forward.is_perfect = False
 
     # Weight clipping
-    # rpu_config.clip.type = WeightClipType.LAYER_GAUSSIAN
-    # rpu_config.clip.type = WeightClipType.LAYER_GAUSSIAN_PER_CHANNEL
-    rpu_config.clip.type = WeightClipType.NONE
+    if weight_clip_type == 'layer_gaussian':
+        rpu_config.clip.type = WeightClipType.LAYER_GAUSSIAN
+        rpu_config.clip.sigma = weight_clip_sigma
+    else:
+        rpu_config.clip.type = WeightClipType.NONE
 
-    # rpu_config.clip.sigma = 9.0
-
-    # Input/Output quantization - complete configuration
-    # rpu_config.forward.inp_res = 1 / (2**16 - 2)  # 8-bit input resolution
-    # rpu_config.forward.out_res = 1 / (2**16 - 2)  # 8-bit output resolution
+    # Input/Output quantization
     rpu_config.forward.inp_res = -1  # no input quantization
     rpu_config.forward.out_res = -1  # no output quantization
-    # rpu_config.forward.out_bound = 256  # A high output bounds initially
-    # rpu_config.forward.inp_bound = 256   # No input bounds (unlimited)
 
-    # # Input range learning configuration - enable if needed
-    # rpu_config.pre_post.input_range.enable = False  # Start with enabled
-    # rpu_config.pre_post.input_range.lr = 0
-    # rpu_config.pre_post.input_range.learn_input_range = True
-    # rpu_config.pre_post.input_range.init_value = 3.0
-    # rpu_config.pre_post.input_range.init_from_data = 500
-    # rpu_config.pre_post.input_range.init_std_alpha = 18.0
-    # rpu_config.pre_post.input_range.input_range_decay = 0.01
-    # rpu_config.pre_post.input_range.input_range_input_min_percentage = 0.95
-    
+    # Input range clipping: only enable when output noise is used.
+    # When enabled, input_range is initialized to init_value and calibrated from data
+    # during forward passes where training=True. However, model.generate() internally
+    # sets training=False, so input_range never gets calibrated during generation.
+    # The uncalibrated input_range clips activations and destroys model output
+    # when combined with weight discretization.
+    needs_input_range = output_noise_level > 0
+    rpu_config.pre_post.input_range.enable = needs_input_range
+    rpu_config.pre_post.input_range.learn_input_range = True
+    rpu_config.pre_post.input_range.init_value = 3.0
+    rpu_config.pre_post.input_range.init_from_data = 100
+    rpu_config.pre_post.input_range.init_std_alpha = 3.0
+    rpu_config.pre_post.input_range.decay = 0.001
+    rpu_config.pre_post.input_range.input_min_percentage = 0.95
+
     # Add our custom flag for evaluation noise
     rpu_config.eval_with_noise = eval_with_noise
-    
+
     print("RPU config generated successfully")
-    
+
     return rpu_config
 
 
 def patch_aihwkit_lightning_for_eval_noise():
     """
-    Monkey-patch AnalogLinear forward method to apply noise during evaluation.
-    Since enable_during_test is deprecated in aihwkit-lightning, we override the forward method to apply noise during evaluation.
+    Monkey-patch AnalogLinear forward method to apply noise and discretization
+    during evaluation. Since enable_during_test is deprecated in
+    aihwkit-lightning 2.x, we temporarily set self.training = True so the
+    library's own forward path applies both discretization (clip_and_quantize)
+    and noise (modify_weight) in the correct order: discretize -> noise.
     """
-    # Store original forward methods
     original_forwards = {}
-    
+
     def patched_forward(self, x):
-        """Modified forward method that applies noise during evaluation when eval_with_noise=True"""
-        # Check if we should apply noise during evaluation
-        should_apply_noise = (
-            not self.training and  # In evaluation mode
-            hasattr(self, 'rpu_config') and 
+        """Forward that forces the library's training-mode weight processing during eval."""
+        should_apply = (
+            not self.training and
+            hasattr(self, 'rpu_config') and
             self.rpu_config is not None and
-            hasattr(self.rpu_config, 'modifier') and
-            self.rpu_config.modifier.std_dev > 0 and
-            getattr(self.rpu_config, 'eval_with_noise', False)  # Our custom flag
+            getattr(self.rpu_config, 'eval_with_noise', False)
         )
-        
-        if should_apply_noise:
-            # Apply noise temporarily using the same logic as aihwkit-lightning
-            original_weight = self.weight.data.clone()
+
+        if should_apply:
+            # Temporarily pretend we are in training mode so the library's
+            # TorchLinear.linear applies clip_and_quantize AND modify_weight.
+            # We disable input_range updates to avoid side-effects.
+            ir_cfg = self.rpu_config.pre_post.input_range
+            orig_ir_enable = ir_cfg.enable
+            ir_cfg.enable = False
+
+            self.training = True
             try:
-                modifier = self.rpu_config.modifier
-                
-                # Calculate assumed_wmax (maximum absolute weight per output channel/row)
-                assumed_wmax = self.weight.data.abs().amax(dim=1, keepdim=True)
-                
-                # Apply additive normal noise exactly like aihwkit-lightning
-                if modifier.noise_type.name == 'ADD_NORMAL_PER_CHANNEL':
-                    # Noise scaled by max weight per channel
-                    with torch.no_grad():
-                        noise = modifier.std_dev * assumed_wmax * torch.randn_like(self.weight.data)
-                elif modifier.noise_type.name == 'ADD_NORMAL':
-                    # Noise scaled by global max weight
-                    with torch.no_grad():
-                        noise = modifier.std_dev * assumed_wmax.max() * torch.randn_like(self.weight.data)
-                else:
-                    # Fallback for other noise types
-                    with torch.no_grad():
-                        noise = modifier.std_dev * assumed_wmax * torch.randn_like(self.weight.data)
-                
-                # Apply noise
-                self.weight.data = original_weight + noise
-                
-                if args.debug:
-                    print(f"Applied noise: weight_noise_std_dev={modifier.std_dev}, assumed_wmax_mean={assumed_wmax.mean().item():.6f}")
-                
-                # Call original forward with noisy weights
                 result = original_forwards[self](x)
-                
-                # Restore original weights
-                self.weight.data = original_weight
-                return result
-                
-            except Exception as e:
-                # Restore weights in case of error
-                self.weight.data = original_weight
-                if args.debug:
-                    print(f"Error applying noise in forward: {e}")
-                # Fall back to original forward
-                return original_forwards[self](x)
+            finally:
+                self.training = False
+                ir_cfg.enable = orig_ir_enable
+            return result
         else:
-            # No noise needed, use original forward
             return original_forwards[self](x)
-    
+
     def apply_patches(model):
         """Apply forward patches to all AnalogLinear layers"""
         for name, module in model.named_modules():
             if isinstance(module, AnalogLinear) and module not in original_forwards:
-                # Store original forward method
                 original_forwards[module] = module.forward
-                # Replace with patched version
                 module.forward = patched_forward.__get__(module, AnalogLinear)
-                
+
                 if args.debug:
                     print(f"Patched AnalogLinear forward method for {name}")
-    
+
     return apply_patches
 
 
@@ -487,15 +484,23 @@ if args.use_analog:
         if ('lora_A' in name or 'lora_B' in name or name.endswith('lm_head')):
             exclude_modules.append(name)
 
+    rpu_config = gen_lightning_rpu_config(
+        output_noise_level=args.output_noise_level,
+        weight_noise_level=args.weight_noise_level,
+        eval_with_noise=args.eval_with_noise,
+        discretised_state=args.discretised_state,
+        weight_clip_type=args.weight_clip_type,
+        weight_clip_sigma=args.weight_clip_sigma,
+    )
     model = convert_to_analog(
         model,
-        gen_lightning_rpu_config(output_noise_level=args.output_noise_level, weight_noise_level=args.weight_noise_level, eval_with_noise=args.eval_with_noise),
+        rpu_config,
         exclude_modules=exclude_modules,
         inplace=True  # This avoids the deepcopy that's causing OOM
     )
     print("Model converted to analog hardware")
     print("rpu config:")
-    print(gen_lightning_rpu_config(output_noise_level=args.output_noise_level, weight_noise_level=args.weight_noise_level, eval_with_noise=args.eval_with_noise))
+    print(rpu_config)
     
     # Configure noise during evaluation if eval_with_noise is enabled
     if args.eval_with_noise:
@@ -820,7 +825,7 @@ def evaluate_on_gsm8k(model, tokenizer, args, mode='eval_lora'):
     if args.use_analog:
         if args.eval_with_noise:
             print(f"🔊 EVALUATION WITH NOISE ENABLED - Custom noise patching active")
-            config = gen_lightning_rpu_config(output_noise_level=args.output_noise_level, weight_noise_level=args.weight_noise_level, eval_with_noise=args.eval_with_noise)
+            config = gen_lightning_rpu_config(output_noise_level=args.output_noise_level, weight_noise_level=args.weight_noise_level, eval_with_noise=args.eval_with_noise, discretised_state=args.discretised_state, weight_clip_type=args.weight_clip_type, weight_clip_sigma=args.weight_clip_sigma)
             print(f"   Weight noise std_dev: {config.modifier.std_dev}")
             print(f"   Output noise level: {config.forward.out_noise}")
             print(f"   Noise type: {config.modifier.noise_type.name}")
@@ -896,8 +901,6 @@ def evaluate_on_gsm8k(model, tokenizer, args, mode='eval_lora'):
                 batch_prompts = batch_samples['prompt']
                 batch_answer_values = batch_samples['answer']
                 
-                print(f"DEBUG: Batch {batch_start//batch_size + 1}: Preparing {len(batch_prompts)} samples")
-                
                 for prompt, answer in zip(batch_prompts, batch_answer_values):
                     text = tokenizer.apply_chat_template(
                         prompt,
@@ -907,8 +910,6 @@ def evaluate_on_gsm8k(model, tokenizer, args, mode='eval_lora'):
                     batch_texts.append(text)
                     batch_answers.append(answer)
                 
-                print(f"DEBUG: Prepared {len(batch_texts)} texts and {len(batch_answers)} answers")
-                
                 # Tokenize batch inputs
                 inputs = tokenizer(
                     batch_texts,
@@ -916,8 +917,6 @@ def evaluate_on_gsm8k(model, tokenizer, args, mode='eval_lora'):
                     padding=True,
                     truncation=True,
                 ).to(model.device)
-                
-                print(f"DEBUG: Tokenized batch shape: {inputs['input_ids'].shape}")
                 
                 # Generate responses for the batch
                 with torch.no_grad():
@@ -931,8 +930,6 @@ def evaluate_on_gsm8k(model, tokenizer, args, mode='eval_lora'):
                         pad_token_id=tokenizer.eos_token_id,
                         eos_token_id=tokenizer.eos_token_id,
                     )
-                
-                print(f"DEBUG: Generated batch shape: {generated_ids.shape}")
                 
                 # Extract responses for each sample in the batch
                 input_lengths = inputs['input_ids'].shape[1]
@@ -948,13 +945,9 @@ def evaluate_on_gsm8k(model, tokenizer, args, mode='eval_lora'):
                         print(f"ERROR: Decoding response for sample {batch_start + i + 1}: {e}")
                         batch_responses.append("")  # Add empty response to maintain alignment
                 
-                print(f"DEBUG: Extracted {len(batch_responses)} responses")
-                
                 # Process each response in the batch
                 for i, (response, answer) in enumerate(zip(batch_responses, batch_answers)):
                     sample_idx = batch_start + i
-                    print(f"DEBUG: Processing sample {sample_idx + 1}, response length: {len(response)}, answer: {answer}")
-                    
                     try:
                         # Extract answer from response using the same format as training
                         extracted_answer = None
@@ -994,8 +987,7 @@ def evaluate_on_gsm8k(model, tokenizer, args, mode='eval_lora'):
                         
                         # ALWAYS increment processed_samples for every sample that we attempt to process
                         processed_samples += 1
-                        print(f"DEBUG: Successfully processed sample {sample_idx + 1}, total processed: {processed_samples}, extracted answer: {extracted_answer}")
-                        
+
                         # Log first few examples
                         if sample_idx < 3:
                             question = batch_prompts[i][-1]['content']
@@ -1010,7 +1002,6 @@ def evaluate_on_gsm8k(model, tokenizer, args, mode='eval_lora'):
                         print(f"ERROR: Processing individual sample {sample_idx + 1}: {e}")
                         # Still count it as processed since we attempted to process it
                         processed_samples += 1
-                        print(f"DEBUG: Failed but counted sample {sample_idx + 1}, total processed: {processed_samples}")
                         # Continue processing next sample in batch
                         continue
                 
@@ -1096,9 +1087,9 @@ if args.mode in ['train_only', 'train_and_eval']:
         lr_scheduler_type = "cosine",
         optim = "adamw_torch_fused",
         logging_steps = 1,
-        per_device_train_batch_size = 2,
-        gradient_accumulation_steps = 2, # Increase to 4 for smoother training
-        num_generations = 8, # Decrease if out of memory
+        per_device_train_batch_size = 1,
+        gradient_accumulation_steps = 1, # Must be 1 to avoid Unsloth shape mismatch bug when multiple prompts with different lengths are in the same mini-batch
+        num_generations = 16, # Effective batch size = num_generations. Decrease if out of memory
         max_prompt_length = max_prompt_length,
         max_completion_length = max_seq_length - max_prompt_length,
         # num_train_epochs = 1, # Set to 1 for a full training run
@@ -1106,7 +1097,7 @@ if args.mode in ['train_only', 'train_and_eval']:
         save_steps = 50,
         max_grad_norm = 0.1,
         report_to = "wandb", # Can use Weights & Biases
-        output_dir = "outputs",
+        output_dir = output_dir,
     )
 
     """And let's run the trainer! If you scroll up, you'll see a table of rewards. The goal is to see the `reward` column increase!
@@ -1188,8 +1179,8 @@ print(text)
 print("------------response------------")
 
 if args.mode == 'train_only' or args.mode == 'train_and_eval':
-    model.save_pretrained("saved_lora_models")  # Local saving
-    tokenizer.save_pretrained("saved_lora_models")
+    model.save_pretrained(lora_save_dir)  # Local saving
+    tokenizer.save_pretrained(lora_save_dir)
 
 from transformers import TextStreamer
 _ = model.generate(

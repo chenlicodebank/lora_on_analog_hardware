@@ -1,8 +1,7 @@
 
 # LoRA on analog hardware
 
-This repository provides code for reproducing the [Efficient transformer adaptation for analog in-memory computing via
-low-rank adapters](https://arxiv.org/html/2411.17367v3) results.
+This repository provides code for reproducing the [Efficient Deployment of Transformer Models in Analog In-Memory Computing Hardware](https://arxiv.org/pdf/2411.17367) results.
 
 ---
 
@@ -11,10 +10,10 @@ low-rank adapters](https://arxiv.org/html/2411.17367v3) results.
 - [Hardware-Aware Training on SQuAD](#hardware-aware-training-on-squad)
 - [Hardware-Aware LoRA Training on SQuAD](#hardware-aware-lora-training-on-squad)
 - [Hardware-Aware LoRA Training on GLUE](#hardware-aware-lora-training-on-glue)
+- [Analog Model Evaluation](#analog-model-evaluation)
+- [GRPO Training with Analog Hardware](#grpo-training-with-analog-hardware)
 - [Scaling](#scaling)
 - [Better LoRA and AIHWKIT Settings](#better-lora-and-aihwkit-settings)
-- [Hardware-Aware LoRA Instruction Tuning](#hardware-aware-lora-instruction-tuning)
-- [Hardware-Aware Reinforcement Learning with GRPO](#hardware-aware-reinforcement-learning-with-grpo)
 - [Citation](#citation)
 
 ---
@@ -147,6 +146,65 @@ python run_glue.py \
 ```
 
 ---
+
+## Analog Model Evaluation
+
+This directory contains comprehensive tools for evaluating language models with analog hardware simulation using the lm-evaluation-harness framework. It supports both digital and analog models with LoRA adapters.
+
+### Key Features:
+- **Custom Analog Model Integration**: Seamless integration with lm-evaluation-harness
+- **Multiple Evaluation Tasks**: 11 benchmark tasks including BoolQ, PIQA, HellaSwag, etc.
+- **WandB Integration**: Automatic experiment tracking and logging
+- **Noise Model Support**: Configurable analog hardware noise simulation
+- **PCM Models**: Phase Change Memory noise characteristics
+
+### Quick Start:
+```bash
+cd analog_model_evaluation
+
+# Test the setup
+python test_custom_model.py
+
+# Run digital model evaluation
+./run_eval_digital_original.sh
+
+# Run analog model with LoRA
+./run_eval_analog_lora.sh
+```
+
+See [analog_model_evaluation/README.md](analog_model_evaluation/README.md) for detailed documentation.
+
+---
+
+## GRPO Training with Analog Hardware
+
+This directory implements GRPO (Group Relative Policy Optimization) training for language models with analog hardware support, specialized for mathematical reasoning tasks.
+
+### Key Features:
+- **GRPO Algorithm**: Advanced training for reasoning models
+- **GSM8K Dataset**: Mathematical reasoning benchmark integration
+- **Analog Training**: Direct training on analog hardware simulation
+- **Drift Analysis**: Long-term hardware degradation effects
+- **Multiple Models**: Support for Llama, Gemma, and other architectures
+
+### Quick Start:
+```bash
+cd grpo_training
+
+# Train digital model with GRPO
+python grpo_gsm8k.py --mode train_only
+
+# Train analog model
+python grpo_gsm8k.py --mode train_only --use_analog
+
+# Evaluate with drift analysis
+python grpo_gsm8k_drift_evaluation.py --lora_path your_model
+```
+
+See [grpo_training/README.md](grpo_training/README.md) for detailed documentation.
+
+---
+
 ## Scaling
 
 The evaluated model is MobileBERT as its parameters (25.3M) can fit on modern analog chips. The proposed method can be applied to other models, simply by specifying `--model_name_or_path` to the desired model in the above scripts. The results on BERT\_BASE (110M) and BERT\_LARGE (340M) can be found on [paper](https://arxiv.org/pdf/2411.17367).
@@ -162,24 +220,6 @@ The training hyperparameters such as the learning rate and the number of epochs,
 
 
 ---
-
-## Hardware-Aware LoRA Instruction Tuning
-
-This section provides an application of Hardware-Aware LoRA Training for instruction tuning using **Llama 3.1-8B** on the **Alpaca dataset**. The implementation leverages **aihwkit-lightning** for analog hardware simulation and supports both digital and analog training modes with comprehensive evaluation benchmarks.
-
-For detailed setup and evaluation scripts, check the [instruction_tuning README](instruction_tuning/README.md).
-
----
-
-## Hardware-Aware Reinforcement Learning with GRPO
-
-This section provides an application of Hardware-Aware LoRA Training for reinforcement learning using **GRPO (Group Relative Policy Optimization)** with **Llama 3.1-8B** on the **GSM8K** mathematical reasoning dataset. The implementation uses **aihwkit-lightning** for analog hardware simulation.
-
-For detailed setup and configuration parameters, check the [reinforcement_learning README](reinforcement_learning/README.md).
-
----
-
-
 
 ## Citation
 

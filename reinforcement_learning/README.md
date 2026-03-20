@@ -13,7 +13,7 @@ pip install wandb
 pip install git+https://github.com/IBM/aihwkit-lightning.git
 
 # login wandb, for experiment tracking (optional)
-huggingface-cli login # for using llama3.1 
+huggingface-cli login # for using llama3.1
 ```
 
 
@@ -22,12 +22,14 @@ huggingface-cli login # for using llama3.1
 
 ### Training Capabilities
 
-- ✅ **GRPO Training** - Group Relative Policy Optimization for reasoning tasks
-- ✅ **Analog Hardware Support** - Train directly on analog hardware simulation
-- ✅ **GSM8K Integration** - Specialized for mathematical reasoning tasks
-- ✅ **LoRA Adapters** - Efficient fine-tuning with Low-Rank Adaptation
-- ✅ **Multiple Models** - Support for Llama, Gemma, and other models
-- ✅ **Noise Injection** - Various noise models during training and inference
+- GRPO Training - Group Relative Policy Optimization for reasoning tasks
+- Analog Hardware Support - Train directly on analog hardware simulation
+- GSM8K Integration - Specialized for mathematical reasoning tasks
+- LoRA Adapters - Efficient fine-tuning with Low-Rank Adaptation
+- Multiple Models - Support for Llama, Gemma, and other models
+- Noise Injection - Various noise models during training and inference
+- Weight Discretization - Configurable discrete weight states for analog simulation
+- PCM Model Evaluation - Phase Change Memory noise evaluation
 
 ### Hardware Simulation
 
@@ -42,27 +44,40 @@ huggingface-cli login # for using llama3.1
 # digital train
 python grpo_gsm8k.py \
     --mode train_only \
+    --eval_samples 1
+
+# analog train (baseline, 0.03 noise)
+WANDB_NAME="1_1_baseline" python grpo_gsm8k.py \
+    --use_analog \
+    --mode train_only \
     --eval_samples 1 \
+    --weight_noise_level 0.03 \
+    --analog_optimizer AnalogAdam \
+    --analog_lr 0.000005
 
-# analog train
-python grpo_gsm8k.py \
---use_analog \
---mode train_only \
---eval_samples 1 \
---weight_noise_level 0.03 \
---analog_optimizer AnalogAdam \
---analog_lr 0.000005
+# analog train (with discretised weights)
+WANDB_NAME="1_3_discretised_24states" python grpo_gsm8k.py \
+    --use_analog \
+    --weight_noise_level 0.003 \
+    --discretised_state 24 \
+    --weight_clip_type none \
+    --mode train_only \
+    --eval_samples 1 \
+    --analog_optimizer AnalogAdam \
+    --analog_lr 0.000005
 
-#evaluate digital model
+# evaluate digital model (no lora)
 python grpo_gsm8k.py \
     --mode eval_original \
     --eval_samples -1 \
     --eval_batch_size 50
 
-#evaluate digital model with lora
+# evaluate digital model with lora
+# Note: --lora_path must point to the specific run directory containing trained weights
+# e.g. saved_lora_models/1_1_baseline, NOT saved_lora_models (which resolves to saved_lora_models/default)
 python grpo_gsm8k.py \
     --mode eval_lora \
-    --lora_path saved_lora_models \
+    --lora_path saved_lora_models/1_1_baseline \
     --eval_samples -1 \
     --eval_batch_size 50
 
@@ -75,14 +90,13 @@ python grpo_gsm8k.py \
     --eval_samples -1 \
     --eval_batch_size 50
 
-
 # evaluate analog model with Gaussian noise and lora
 python grpo_gsm8k.py \
     --mode eval_lora \
     --use_analog \
     --eval_with_noise \
     --weight_noise_level 0.03 \
-    --lora_path saved_lora_models \
+    --lora_path saved_lora_models/1_1_baseline \
     --eval_samples -1 \
     --eval_batch_size 50
 
@@ -101,23 +115,32 @@ python grpo_gsm8k.py \
     --use_analog \
     --evaluate_with_pcm_model \
     --pcm_max_inp_size 512 \
-    --lora_path saved_lora_models \
+    --lora_path saved_lora_models/1_1_baseline \
     --eval_samples -1 \
     --eval_batch_size 50
+
 ```
 
 ### Configuration Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `mode` | str | "train_only" | Operation mode (train_only, eval_lora, train_and_eval) |
+| `mode` | str | "train_only" | Operation mode (train_only, eval_original, train_and_eval, eval_lora) |
 | `use_analog` | bool | False | Enable analog hardware simulation |
 | `pcm_model` | str | "PCM_Gmax25" | PCM model type |
 | `output_noise_level` | float | 0.0 | Output noise level |
-| `weight_noise_level` | float | 0.03 | Weight noise level |
-| `max_steps` | int | 500 | Maximum training steps |
-| `eval_samples` | int | -1 | Number of evaluation samples (-1 for all) |
-| `lora_path` | str | None | Path to LoRA adapters |
+| `weight_noise_level` | float | 0.0 | Weight noise standard deviation |
+| `analog_optimizer` | str | None | Analog optimizer (AnalogSGD, AnalogAdam) |
+| `analog_lr` | float | 0.000005 | Learning rate for the analog optimizer |
+| `discretised_state` | int | 0 | Number of discrete weight states (0=disabled) |
+| `weight_clip_type` | str | "none" | Weight clipping type (none, layer_gaussian) |
+| `weight_clip_sigma` | float | 2.0 | Sigma for layer_gaussian clipping |
+| `eval_samples` | int | 100 | Number of evaluation samples (-1 for all) |
+| `eval_batch_size` | int | 8 | Batch size for evaluation |
+| `eval_with_noise` | bool | False | Apply noise during evaluation |
+| `evaluate_with_pcm_model` | bool | False | Evaluate with PCM noise model |
+| `pcm_max_inp_size` | int | 512 | Max input size for PCM noise model tiling |
+| `lora_path` | str | "saved_lora_models" | Path to LoRA adapters |
 
 
 ## Algorithm and Dataset Overview
@@ -134,7 +157,7 @@ python grpo_gsm8k.py \
 - **Testing**: 1,319 problems for evaluation
 
 
-## 📈 Performance
+## Performance
 
 ### Results
 
@@ -147,11 +170,10 @@ python grpo_gsm8k.py \
 You can download the trained checkpoint from [Google Drive](https://drive.google.com/drive/folders/1ysoBDs6ljeN0fcrmQi-Xb80c5ujFeRe9?usp=sharing).
 
 
-## 📄 References
+## References
 
 This implementation is based on:
 - GRPO: Group Relative Policy Optimization
 - Unsloth: Efficient model fine-tuning
 - aihwkit-lightning: Analog hardware simulation
 - GSM8K: Grade School Math dataset
-

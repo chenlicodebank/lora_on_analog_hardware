@@ -1,4 +1,4 @@
-# 🔬 Instruction tuning
+# Instruction tuning
 
 Instruction tuning and evaluations (both qualitative and quantitative).
 ## Installation
@@ -13,87 +13,120 @@ pip install git+https://github.com/IBM/aihwkit-lightning.git
 git clone --depth 1 https://github.com/EleutherAI/lm-evaluation-harness
 cd lm-evaluation-harness
 pip install -e .
+# If unsloth pulls CPU-only torch, must force reinstall with CUDA
+pip install --force-reinstall torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
 # login wandb, for experiment tracking (optional)
-huggingface-cli login # for using llama3.1 
+huggingface-cli login # for using llama3.1
 ```
 
 
-## 🎯 Usage
+## Usage
 
 ### Training Modes
 
 #### 1. Digital Training (Baseline)
 ```bash
-# Train and evaluate
-python instruction_tuning.py --mode train_and_eval
-
-# Evaluate only
-python instruction_tuning.py --mode eval_original
+# Train only
+WANDB_PROJECT="instruction_tuning" WANDB_NAME="IT_digital" \
+    python instruction_tuning.py --mode train_only
 ```
 
 #### 2. Analog Training (Hardware Simulation)
 ```bash
-# Full analog training pipeline
-python instruction_tuning.py \
+# Analog training with per-channel noise
+WANDB_PROJECT="instruction_tuning" WANDB_NAME="IT_analog_noise_0.067" \
+    python instruction_tuning.py \
     --use_analog \
-    --mode train_and_eval \
-    --output_noise_level 0.1 \
+    --weight_noise_level 0.067 \
+    --output_noise_level 0 \
+    --mode train_only \
     --analog_optimizer AnalogAdam \
-    --analog_lr 0.0002 \
-    --pcm_noise_std 0.05
+    --analog_lr 0.0002
+```
 
-# Analog evaluation only
-python instruction_tuning.py \
+### Qualitative Evaluation
+
+These modes run the model on a sample prompt (e.g., "Continue the Fibonacci sequence") and print the generated output for qualitative inspection.
+
+```bash
+# Digital model before LoRA training (base model with random-initialized LoRA)
+WANDB_PROJECT="instruction_tuning" WANDB_NAME="IT_digital_eval_original" \
+    python instruction_tuning.py --mode eval_original
+
+# Digital model after LoRA training (base model with trained LoRA weights)
+WANDB_PROJECT="instruction_tuning" WANDB_NAME="IT_digital_eval_lora" \
+    python instruction_tuning.py --mode eval_lora
+
+# Analog model before LoRA training
+WANDB_PROJECT="instruction_tuning" WANDB_NAME="IT_analog_eval_original" \
+    python instruction_tuning.py \
     --use_analog \
+    --weight_noise_level 0.067 \
+    --output_noise_level 0 \
     --mode eval_original
+
+# Analog model after LoRA training
+WANDB_PROJECT="instruction_tuning" WANDB_NAME="IT_analog_eval_lora" \
+    python instruction_tuning.py \
+    --use_analog \
+    --weight_noise_level 0.067 \
+    --output_noise_level 0 \
+    --mode eval_lora
 ```
 
-### Evaluation Options
+### Quantitative Evaluation
 
-#### Comprehensive Evaluation (All Tasks)
+The following evaluations use the [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness) framework to run benchmark tasks and report numerical metrics (accuracy).
+
+#### Comprehensive Evaluation (All Tasks, Before and After LoRA)
 ```bash
-# Digital model evaluation
-./run_eval_digital_original.sh      # Base model
-./run_eval_digital_lora.sh          # With LoRA adapters
-
-# Analog model evaluation
-./run_eval_analog_original.sh       # Base analog model
-./run_eval_analog_lora.sh           # Analog + LoRA
-./run_eval_analog_original_pcm.sh   # With PCM noise
+# Recommended: runs all 7 tasks, before and after LoRA
+python run_eval_full.py
 ```
 
-#### Single Task Evaluation (Faster)
+#### PCM Noise Model Evaluation
+
+> PCM evaluation uses `custom_analog_model.py` (registered as `custom_analog`) with `evaluate_with_pcm_model=True`.
+
 ```bash
-# Recommended for analog models (faster)
-./run_eval_analog_original_singletask.sh
+# Evaluate analog model with PCM noise (before LoRA)
+python lm_eval_wrapper_all_tasks.py --run_name "pcm_eval" --model custom_analog \
+    --model_args "model_name=unsloth/Meta-Llama-3.1-8B,use_analog=False,evaluate_with_pcm_model=True,pcm_max_inp_size=512,output_noise_level=0,weight_noise_level=0" \
+    --tasks sciq,piqa,arc_easy,arc_challenge,boolq,winogrande,hellaswag \
+    --num_fewshot 0 \
+    --device cuda:0 \
+    --batch_size auto:4 \
+    --output_path ./results/analog_original_pcm_0shot
 ```
+
 
 ### Key Parameters
 
 | Parameter | Description | Default | Options |
 |-----------|-------------|---------|---------|
 | `--use_analog` | Enable analog hardware simulation | `False` | `True/False` |
-| `--mode` | Operation mode | `train_and_eval` | `train_and_eval`, `eval_original` |
+| `--mode` | Operation mode | `train_only` | `train_only`, `train_and_eval`, `eval_original`, `eval_lora` |
+| `--weight_noise_level` | Weight noise level for analog training | `0.067` | e.g. `0.03`, `0.067` |
 | `--output_noise_level` | Noise level for analog outputs | `0.0` | `0.0-1.0` |
-| `--analog_optimizer` | Optimizer for analog training | `AnalogSGD` | `AnalogSGD`, `AnalogAdam` |
-| `--analog_lr` | Learning rate for analog training | `0.0001` | `2e-4` |
+| `--analog_optimizer` | Optimizer for analog training | `None` | `AnalogSGD`, `AnalogAdam` |
+| `--analog_lr` | Learning rate for analog training | `0.000005` | e.g. `2e-4` |
+| `--lora_path` | Path to LoRA weights for eval_lora mode | `saved_lora_models` | any path |
 
-## 📊 Evaluation Benchmarks
+## Evaluation Benchmarks
 | Category | Task | Description | Metric |
 |----------|------|-------------|--------|
-| **Physical Reasoning** | `piqa` | Physical interaction QA | Accuracy ↑ |
-| **Commonsense Reasoning** | `hellaswag` | Sentence completion | Accuracy ↑ |
-| **Coreference Resolution** | `winogrande` | Pronoun resolution | Accuracy ↑ |
-| **Science QA** | `arc_easy` | Elementary science questions | Accuracy ↑ |
-| **Science QA** | `arc_challenge` | Advanced science questions | Accuracy ↑ |
-| **Boolean QA** | `boolq` | Yes/no questions | Accuracy ↑ |
-| **Science QA** | `sciq` | Multiple choice science | Accuracy ↑ |
-| **Causal Reasoning** | `copa` | Cause and effect | Accuracy ↑ |
-| **Open Domain QA** | `openbookqa` | Elementary science reasoning | Accuracy ↑ |
+| **Physical Reasoning** | `piqa` | Physical interaction QA | Accuracy |
+| **Commonsense Reasoning** | `hellaswag` | Sentence completion | Accuracy |
+| **Coreference Resolution** | `winogrande` | Pronoun resolution | Accuracy |
+| **Science QA** | `arc_easy` | Elementary science questions | Accuracy |
+| **Science QA** | `arc_challenge` | Advanced science questions | Accuracy |
+| **Boolean QA** | `boolq` | Yes/no questions | Accuracy |
+| **Science QA** | `sciq` | Multiple choice science | Accuracy |
 
-> **📝 Note**: Analog model evaluation can be significantly slower than digital evaluation due to hardware simulation overhead.
+> **Note**: Analog model evaluation can be significantly slower than digital evaluation due to hardware simulation overhead.
 
-## 📈 Performance
+## Performance
 
 ### Results (single task evaluation on hellaswag)
 
@@ -105,7 +138,7 @@ python instruction_tuning.py \
 You can download the trained checkpoint from [Google Drive](https://drive.google.com/drive/folders/1ysoBDs6ljeN0fcrmQi-Xb80c5ujFeRe9?usp=sharing).
 
 
-## 📄 References & Acknowledgments
+## References & Acknowledgments
 
 This project builds upon several outstanding open-source projects:
 
@@ -114,5 +147,3 @@ This project builds upon several outstanding open-source projects:
 - **[AIHWKit-Lightning](https://github.com/IBM/aihwkit-lightning)**: IBM's analog hardware simulation toolkit
 - **[LoRA](https://arxiv.org/abs/2106.09685)**: Low-Rank Adaptation technique for efficient fine-tuning
 - **[Alpaca Dataset](https://github.com/tatsu-lab/stanford_alpaca)**: Instruction-following dataset
-
-

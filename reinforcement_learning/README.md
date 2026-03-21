@@ -12,6 +12,9 @@ pip install unsloth
 pip install wandb
 pip install git+https://github.com/IBM/aihwkit-lightning.git
 
+# If unsloth pulls CPU-only torch, must force reinstall with CUDA
+pip install --force-reinstall torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
 # login wandb, for experiment tracking (optional)
 huggingface-cli login # for using llama3.1
 ```

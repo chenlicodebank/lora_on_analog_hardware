@@ -1,7 +1,7 @@
 
 # LoRA on analog hardware
 
-This repository provides code for reproducing the [Efficient Deployment of Transformer Models in Analog In-Memory Computing Hardware](https://arxiv.org/pdf/2411.17367) results.
+This repository provides code for reproducing the [Efficient transformer adaptation for analog in-memory computing via low-rank adapters](https://arxiv.org/abs/2411.17367) results. [[arXiv]](https://arxiv.org/abs/2411.17367) [[Neuromorphic Computing and Engineering]](https://iopscience.iop.org/article/10.1088/2634-4386/ae405e)
 
 ---
 
@@ -10,7 +10,7 @@ This repository provides code for reproducing the [Efficient Deployment of Trans
 - [Hardware-Aware Training on SQuAD](#hardware-aware-training-on-squad)
 - [Hardware-Aware LoRA Training on SQuAD](#hardware-aware-lora-training-on-squad)
 - [Hardware-Aware LoRA Training on GLUE](#hardware-aware-lora-training-on-glue)
-- [Analog Model Evaluation](#analog-model-evaluation)
+- [Instruction Tuning with Analog Hardware](#instruction-tuning-with-analog-hardware)
 - [GRPO Training with Analog Hardware](#grpo-training-with-analog-hardware)
 - [Scaling](#scaling)
 - [Better LoRA and AIHWKIT Settings](#better-lora-and-aihwkit-settings)
@@ -49,7 +49,7 @@ This section provides a straightforward application of Hardware-Aware Training w
 cd hardware_aware_training
 ```
 ```
-export SQUAD_DIR=pwd/data
+export SQUAD_DIR=$(pwd)/data
 python run_qa.py \
   --model_name_or_path csarron/mobilebert-uncased-squad-v1 --dataset_name squad \
   --do_train \
@@ -78,15 +78,14 @@ python run_qa.py \
 
 ## Hardware-Aware LoRA Training on SQuAD
 
-This section provides an application of the Hardware-Aware LoRA Training with MobileBERT on the SQuAD v1.1 dataset. In traditional Hardware-Aware Training, the process typically involves two steps: fine-tuning the model in full precision, and then using the fine-tuned model for hardware-aware training. However, in Hardware-Aware LoRA Training, we skip the full precision fine-tuning step and directly use the pretrained model. Specifically, we use `--model_name_or_path google/mobilebert-uncased` instead of `--model_name_or_path csarron/mobilebert-uncased-squad-v1`. This approach retains the flexibility for post-deployment adaptations to new tasks (e.g., GLUE) and hardware configurations (e.g., ADC bit settings), see [paper](https://arxiv.org/pdf/2411.17367) for details.
+This section provides an application of the Hardware-Aware LoRA Training with MobileBERT on the SQuAD v1.1 dataset. In traditional Hardware-Aware Training, the process typically involves two steps: fine-tuning the model in full precision, and then using the fine-tuned model for hardware-aware training. However, in Hardware-Aware LoRA Training, we skip the full precision fine-tuning step and directly use the pretrained model. Specifically, we use `--model_name_or_path google/mobilebert-uncased` instead of `--model_name_or_path csarron/mobilebert-uncased-squad-v1`. This approach retains the flexibility for post-deployment adaptations to new tasks (e.g., GLUE) and hardware configurations (e.g., ADC bit settings), see [paper](https://arxiv.org/abs/2411.17367) for details.
 
 ### Example:
 ```
 cd lora_training
 ```
 ```
-export SQUAD_DIR=pwd/data
-export SQUAD_DIR=pwd/data
+export SQUAD_DIR=$(pwd)/data
 python run_qa.py \
    --model_name_or_path google/mobilebert-uncased --dataset_name squad \
    --do_train \
@@ -147,32 +146,32 @@ python run_glue.py \
 
 ---
 
-## Analog Model Evaluation
+## Instruction Tuning with Analog Hardware
 
-This directory contains comprehensive tools for evaluating language models with analog hardware simulation using the lm-evaluation-harness framework. It supports both digital and analog models with LoRA adapters.
+This directory contains tools for instruction tuning and evaluation of language models with analog hardware simulation, using the lm-evaluation-harness framework. It supports both digital and analog models with LoRA adapters.
 
 ### Key Features:
 - **Custom Analog Model Integration**: Seamless integration with lm-evaluation-harness
-- **Multiple Evaluation Tasks**: 11 benchmark tasks including BoolQ, PIQA, HellaSwag, etc.
+- **Multiple Evaluation Tasks**: 7 benchmark tasks including BoolQ, PIQA, HellaSwag, etc.
 - **WandB Integration**: Automatic experiment tracking and logging
 - **Noise Model Support**: Configurable analog hardware noise simulation
 - **PCM Models**: Phase Change Memory noise characteristics
 
 ### Quick Start:
 ```bash
-cd analog_model_evaluation
+cd instruction_tuning
 
-# Test the setup
-python test_custom_model.py
+# Digital training
+python instruction_tuning.py --mode train_only
 
-# Run digital model evaluation
-./run_eval_digital_original.sh
+# Analog training with noise
+python instruction_tuning.py --use_analog --weight_noise_level 0.067 --mode train_only --analog_optimizer AnalogAdam --analog_lr 0.0002
 
-# Run analog model with LoRA
-./run_eval_analog_lora.sh
+# Comprehensive evaluation (all tasks, before and after LoRA)
+python run_eval_full.py
 ```
 
-See [analog_model_evaluation/README.md](analog_model_evaluation/README.md) for detailed documentation.
+See [instruction_tuning/README.md](instruction_tuning/README.md) for detailed documentation.
 
 ---
 
@@ -184,35 +183,35 @@ This directory implements GRPO (Group Relative Policy Optimization) training for
 - **GRPO Algorithm**: Advanced training for reasoning models
 - **GSM8K Dataset**: Mathematical reasoning benchmark integration
 - **Analog Training**: Direct training on analog hardware simulation
-- **Drift Analysis**: Long-term hardware degradation effects
+- **Noise Models**: Configurable Gaussian and PCM noise characteristics
 - **Multiple Models**: Support for Llama, Gemma, and other architectures
 
 ### Quick Start:
 ```bash
-cd grpo_training
+cd reinforcement_learning
 
 # Train digital model with GRPO
-python grpo_gsm8k.py --mode train_only
+python grpo_gsm8k.py --mode train_only --eval_samples 1
 
 # Train analog model
-python grpo_gsm8k.py --mode train_only --use_analog
+python grpo_gsm8k.py --use_analog --mode train_only --eval_samples 1 --weight_noise_level 0.03 --analog_optimizer AnalogAdam --analog_lr 0.000005
 
-# Evaluate with drift analysis
-python grpo_gsm8k_drift_evaluation.py --lora_path your_model
+# Evaluate digital model with LoRA
+python grpo_gsm8k.py --mode eval_lora --lora_path saved_lora_models/1_1_baseline --eval_samples -1 --eval_batch_size 50
 ```
 
-See [grpo_training/README.md](grpo_training/README.md) for detailed documentation.
+See [reinforcement_learning/README.md](reinforcement_learning/README.md) for detailed documentation.
 
 ---
 
 ## Scaling
 
-The evaluated model is MobileBERT as its parameters (25.3M) can fit on modern analog chips. The proposed method can be applied to other models, simply by specifying `--model_name_or_path` to the desired model in the above scripts. The results on BERT\_BASE (110M) and BERT\_LARGE (340M) can be found on [paper](https://arxiv.org/pdf/2411.17367).
+The evaluated model is MobileBERT as its parameters (25.3M) can fit on modern analog chips. The proposed method can be applied to other models, simply by specifying `--model_name_or_path` to the desired model in the above scripts. The results on BERT\_BASE (110M) and BERT\_LARGE (340M) can be found in the [paper](https://arxiv.org/abs/2411.17367).
 
 ---
-## Better LoRA and AIHWKIT settings
+## Better LoRA and AIHWKIT Settings
 
-We employ naive [LoRA](https://arxiv.org/pdf/2106.09685) to keep the implementation simple and establish baseline results. Leveraging more advanced LoRA variants and better LoRA hyperparameters have the potential to achieve superior performance compared to the results presented in our paper.
+We employ naive [LoRA](https://arxiv.org/abs/2106.09685) to keep the implementation simple and establish baseline results. Leveraging more advanced LoRA variants and better LoRA hyperparameters have the potential to achieve superior performance compared to the results presented in our paper.
 
 Additionally, the final performance is influenced by the settings in AIHWKIT. Most tunable parameters are configurable through the `gen_rpu_config` function.
 
@@ -227,10 +226,11 @@ If you use this repository in your research or project, please consider citing i
 
 ```
 @article{li2024efficient,
-  title={Efficient Deployment of Transformer Models in Analog In-Memory Computing Hardware},
+  title={Efficient transformer adaptation for analog in-memory computing via low-rank adapters},
   author={Li, Chen and Lammie, Corey and Gallo, Manuel Le and Rajendran, Bipin},
-  journal={arXiv preprint arXiv:2411.17367},
-  year={2024}
+  journal={Neuromorphic Computing and Engineering},
+  year={2025},
+  publisher={IOP Publishing}
 }
 ```
 

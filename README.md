@@ -1,7 +1,23 @@
 
 # LoRA on analog hardware
 
-This repository provides code for reproducing the [Efficient transformer adaptation for analog in-memory computing via low-rank adapters](https://arxiv.org/abs/2411.17367) results. [[arXiv]](https://arxiv.org/abs/2411.17367) [[Neuromorphic Computing and Engineering]](https://iopscience.iop.org/article/10.1088/2634-4386/ae405e)
+[![DOI](https://img.shields.io/badge/DOI-10.1088%2F2634--4386%2Fae405e-blue)](https://doi.org/10.1088/2634-4386/ae405e)
+[![arXiv](https://img.shields.io/badge/arXiv-2411.17367-b31b1b.svg)](https://arxiv.org/abs/2411.17367)
+
+Official code for [**Efficient transformer adaptation for analog in-memory computing via low-rank adapters**](https://doi.org/10.1088/2634-4386/ae405e), published in *Neuromorphic Computing and Engineering* **6**, 014011 (2026, open access). [[IOP]](https://iopscience.iop.org/article/10.1088/2634-4386/ae405e) [[arXiv]](https://arxiv.org/abs/2411.17367)
+
+**AHWA-LoRA training** adapts transformers to analog in-memory computing (AIMC) / processing-in-memory (PIM) hardware without retraining or reprogramming the base model: the pre-trained weights stay frozen on the analog tiles as weight-stationary meta-weights, and lightweight external LoRA adapters — trained hardware-aware — absorb both device non-idealities and downstream-task shifts.
+
+## Results at a glance
+
+| Setting | Model | Headline result |
+|---|---|---|
+| SQuAD v1.1, PCM hardware model | MobileBERT | F1 **89.06** at t=0 / **85.36** after 10-year drift — on par with full analog hardware-aware retraining (89.47 / 85.14) while training **1.63M vs 24.67M** parameters (15× fewer) |
+| GLUE (one frozen base + per-task LoRA) | MobileBERT | Average **78.8** at t=0, **76.9** after 10-year drift |
+| Scaling | BERT-Base / BERT-Large | 10-year-drift F1 drop of only **0.63 / 0.48** points (LoRA = 1.3M / 3.5M weights) |
+| Instruction tuning (zero-shot, 9 benchmarks) | LLaMA 3.1 8B | Recovers analog accuracy, e.g. HellaSwag **29.5 → 67.7** (digital baseline 78.9) |
+| Reinforcement learning (GRPO, GSM8K CoT) | LLaMA 3.1 8B | Analog accuracy **37.98 → 70.74**, cutting the analog–digital gap from ~30 to ~15 points (~2.5 under reduced evaluation noise) |
+| Hybrid deployment (AIMC tiles + RISC-V PMCA pipeline) | MobileBERT | As low as **4%** per-layer latency overhead vs a fully-AIMC baseline |
 
 ---
 
@@ -225,12 +241,16 @@ The training hyperparameters such as the learning rate and the number of epochs,
 If you use this repository in your research or project, please consider citing it using the following format:
 
 ```
-@article{li2024efficient,
+@article{li2026efficient,
   title={Efficient transformer adaptation for analog in-memory computing via low-rank adapters},
-  author={Li, Chen and Lammie, Corey and Gallo, Manuel Le and Rajendran, Bipin},
+  author={Li, Chen and Ferro, Elena and Lammie, Corey and Le Gallo, Manuel and Boybat, Irem and Rajendran, Bipin},
   journal={Neuromorphic Computing and Engineering},
-  year={2025},
-  publisher={IOP Publishing}
+  volume={6},
+  number={1},
+  pages={014011},
+  year={2026},
+  publisher={IOP Publishing},
+  doi={10.1088/2634-4386/ae405e}
 }
 ```
 
